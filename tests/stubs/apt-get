@@ -1,0 +1,21 @@
+#!/bin/bash
+# apt-get stub: manages fake tool binaries in $TEST_BIN instead of touching the system
+case "${1:-}" in
+    update)
+        exit 0
+        ;;
+    install)
+        shift 2  # drop 'install' '-y'
+        for pkg in "$@"; do
+            printf '#!/bin/bash\necho "%s (apt stub)"\n' "$pkg" > "${TEST_BIN}/${pkg}"
+            chmod +x "${TEST_BIN}/${pkg}"
+        done
+        ;;
+    remove)
+        shift 2  # drop 'remove' '-y'
+        for pkg in "$@"; do
+            rm -f "${TEST_BIN}/${pkg}"
+        done
+        ;;
+esac
+exit 0

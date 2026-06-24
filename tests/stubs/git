@@ -1,0 +1,39 @@
+#!/bin/bash
+# git stub: handles `git clone` and `git -C <dir> pull --ff-only`
+# Captures the -C <dir> directory so `pull` can mimic real git, which fails
+# when run against a path that is not a git repository.
+args=()
+cdir=""
+skip_next=false
+for arg in "$@"; do
+    if $skip_next; then
+        cdir="$arg"
+        skip_next=false
+        continue
+    fi
+    if [ "$arg" = "-C" ]; then
+        skip_next=true
+        continue
+    fi
+    args+=("$arg")
+done
+
+cmd="${args[0]:-}"
+case "$cmd" in
+    clone)
+        dest="${args[-1]}"
+        mkdir -p "$dest/.git"
+        printf '#!/bin/bash\n' > "$dest/install.sh"
+        printf '#!/bin/bash\necho "workshop session launched"\n' > "$dest/setup_workshop.sh"
+        chmod +x "$dest/install.sh" "$dest/setup_workshop.sh"
+        ;;
+    pull)
+        target="${cdir:-.}"
+        if [ ! -d "$target/.git" ]; then
+            echo "fatal: not a git repository: $target" >&2
+            exit 128
+        fi
+        exit 0
+        ;;
+esac
+exit 0

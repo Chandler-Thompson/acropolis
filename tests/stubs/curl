@@ -1,0 +1,13 @@
+#!/bin/bash
+# curl stub: called as `curl -Lo <outfile> <url>`
+# Creates a minimal tar that unpacks to nvim/bin/nvim with the pinned version string
+outfile="$2"
+tmpdir="$(mktemp -d)"
+mkdir -p "${tmpdir}/nvim-linux-x86_64/bin"
+cat > "${tmpdir}/nvim-linux-x86_64/bin/nvim" << 'NVIM'
+#!/bin/bash
+echo "NVIM v0.12.0"
+NVIM
+chmod +x "${tmpdir}/nvim-linux-x86_64/bin/nvim"
+tar -czf "$outfile" -C "$tmpdir" "nvim-linux-x86_64"
+rm -rf "$tmpdir"

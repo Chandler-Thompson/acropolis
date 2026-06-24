@@ -1,0 +1,288 @@
+#!/bin/bash
+set -euo pipefail
+
+# ── Constants ────────────────────────────────────────────────────────────────
+
+ACROPOLIS_DIR="$HOME/.local/share/acropolis"
+MANIFEST="$ACROPOLIS_DIR/manifest"
+SHELL_INIT="$ACROPOLIS_DIR/shell/shell_init"
+BASHRC="$HOME/.bashrc"
+SYMLINK="$HOME/.local/bin/acropolis"
+
+# Resolve this script's real location, following symlinks. In normal use
+# acropolis is invoked through the ~/.local/bin/acropolis symlink, so
+# ${BASH_SOURCE[0]} is the symlink — not the repo. Following the chain lets
+# `update` find the git repo and keeps the install symlink off itself.
+_resolve_self() {
+    local src="${BASH_SOURCE[0]}"
+    while [ -L "$src" ]; do
+        local dir
+        dir="$(cd -P "$(dirname "$src")" && pwd)"
+        src="$(readlink "$src")"
+        [[ "$src" == /* ]] || src="$dir/$src"
+    done
+    cd -P "$(dirname "$src")" && pwd
+}
+ACROPOLIS_REPO="$(_resolve_self)"
+SCRIPT="$ACROPOLIS_REPO/acropolis"
+
+NVIM_VERSION="v0.12.0"
+NVIM_BIN="$ACROPOLIS_DIR/nvim/bin/nvim"
+
+WORKSHOP_DEFAULT_URL="https://github.com/Chandler-Thompson/workshop.git"
+WORKSHOP_DIR="$ACROPOLIS_DIR/workshop"
+
+# ── Helpers ──────────────────────────────────────────────────────────────────
+
+die() { echo "acropolis: error: $*" >&2; exit 1; }
+
+manifest_has() {
+    grep -q "^$1	" "$MANIFEST" 2>/dev/null
+}
+
+manifest_get() {
+    grep "^$1	" "$MANIFEST" 2>/dev/null | cut -f"$2"
+}
+
+manifest_set() {
+    local tool="$1" version="$2" method="$3" preexisting="$4"
+    if manifest_has "$tool"; then
+        sed -i "s|^${tool}	.*|${tool}	${version}	${method}	${preexisting}|" "$MANIFEST"
+    else
+        printf '%s\t%s\t%s\t%s\n' "$tool" "$version" "$method" "$preexisting" >> "$MANIFEST"
+    fi
+}
+
+manifest_remove() {
+    sed -i "/^$1	/d" "$MANIFEST"
+}
+
+bashrc_block_present() {
+    grep -q "# >>> acropolis >>>" "$BASHRC" 2>/dev/null
+}
+
+# ── Subcommands ───────────────────────────────────────────────────────────────
+
+cmd_install() {
+    mkdir -p "$ACROPOLIS_DIR/nvim" "$ACROPOLIS_DIR/shell" "$HOME/.local/bin"
+    [ -f "$MANIFEST" ] || touch "$MANIFEST"
+
+    _install_apt_tool tmux
+    _install_apt_tool htop
+    _install_nvim
+    _write_shell_init
+    _wire_bashrc
+    _write_symlink
+
+    echo "acropolis: install complete."
+}
+
+_install_apt_tool() {
+    local tool="$1"
+    if command -v "$tool" &>/dev/null; then
+        local version
+        version="$("$tool" --version 2>/dev/null | head -1 || true)"
+        echo "$tool: already present — $version"
+        manifest_set "$tool" "$version" "apt" "1"
+    else
+        echo "Installing $tool..."
+        sudo apt-get update -qq && sudo apt-get install -y "$tool"
+        local version
+        version="$("$tool" --version 2>/dev/null | head -1 || true)"
+        manifest_set "$tool" "$version" "apt" "0"
+    fi
+}
+
+_install_nvim() {
+    if [ -f "$NVIM_BIN" ] && "$NVIM_BIN" --version 2>/dev/null | grep -qF "$NVIM_VERSION"; then
+        echo "nvim: already at $NVIM_VERSION"
+        manifest_set "nvim" "$NVIM_VERSION" "tarball" "$(manifest_get nvim 4 || echo 0)"
+        return
+    fi
+
+    if [ -f "$NVIM_BIN" ]; then
+        echo "Updating nvim to $NVIM_VERSION..."
+        rm -rf "$ACROPOLIS_DIR/nvim"
+        mkdir -p "$ACROPOLIS_DIR/nvim"
+    else
+        echo "Installing nvim $NVIM_VERSION..."
+    fi
+
+    local tarball="$ACROPOLIS_DIR/nvim.tar.gz"
+    curl -Lo "$tarball" \
+        "https://github.com/neovim/neovim/releases/download/${NVIM_VERSION}/nvim-linux-x86_64.tar.gz"
+    tar -xzf "$tarball" --strip-components=1 -C "$ACROPOLIS_DIR/nvim"
+    rm "$tarball"
+    manifest_set "nvim" "$NVIM_VERSION" "tarball" "0"
+}
+
+_write_shell_init() {
+    mkdir -p "$ACROPOLIS_DIR/shell"
+    # ~/.local/bin is already on PATH in standard Linux — only prepend if missing
+    cat > "$SHELL_INIT" << 'EOF'
+# Acropolis managed shell environment
+export PATH="$HOME/.local/share/acropolis/nvim/bin:$PATH"
+case ":$PATH:" in
+    *":$HOME/.local/bin:"*) ;;
+    *) export PATH="$HOME/.local/bin:$PATH" ;;
+esac
+EOF
+    chmod +x "$SHELL_INIT"
+}
+
+_wire_bashrc() {
+    if bashrc_block_present; then
+        echo "bashrc: acropolis block already present"
+        return
+    fi
+    cat >> "$BASHRC" << 'EOF'
+
+# >>> acropolis >>>
+source "$HOME/.local/share/acropolis/shell/shell_init"
+# <<< acropolis <<<
+EOF
+    echo "bashrc: acropolis block written"
+}
+
+_write_symlink() {
+    ln -sf "$SCRIPT" "$SYMLINK"
+    echo "symlink: $SYMLINK → $SCRIPT"
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+
+cmd_status() {
+    echo "Acropolis status"
+    echo "──────────────────────────────────────────"
+    printf '%-12s %-20s %-10s %s\n' "TOOL" "VERSION" "METHOD" "PREEXISTING"
+    echo "──────────────────────────────────────────"
+
+    if [ -f "$MANIFEST" ]; then
+        while IFS=$'\t' read -r tool version method preexisting; do
+            local flag="no"
+            [ "$preexisting" = "1" ] && flag="yes"
+            printf '%-12s %-20s %-10s %s\n' "$tool" "$version" "$method" "$flag"
+        done < "$MANIFEST"
+    else
+        echo "(no manifest — run 'acropolis install')"
+    fi
+
+    echo ""
+    echo "Shell init:"
+    if bashrc_block_present; then
+        echo "  ~/.bashrc block: present"
+    else
+        echo "  ~/.bashrc block: absent"
+    fi
+
+    echo ""
+    echo "Symlink:"
+    if [ -L "$SYMLINK" ]; then
+        echo "  $SYMLINK → $(readlink "$SYMLINK")"
+    else
+        echo "  $SYMLINK: absent"
+    fi
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+
+cmd_teardown() {
+    read -rp "Remove Acropolis and all managed tools from this machine? [y/N] " confirm
+    [[ "$confirm" =~ ^[Yy]$ ]] || { echo "Aborted."; exit 0; }
+
+    # Uninstall apt tools with preexisting=0
+    if [ -f "$MANIFEST" ]; then
+        while IFS=$'\t' read -r tool _version method preexisting; do
+            if [ "$method" = "apt" ] && [ "$preexisting" = "0" ]; then
+                echo "Removing $tool..."
+                sudo apt-get remove -y "$tool"
+            fi
+        done < "$MANIFEST"
+    fi
+
+    # Remove managed directory tree (covers nvim, shell_init, workshop clone, manifest)
+    if [ -d "$ACROPOLIS_DIR" ]; then
+        rm -rf "$ACROPOLIS_DIR"
+        echo "Removed $ACROPOLIS_DIR."
+    fi
+
+    # Remove bashrc block
+    if bashrc_block_present; then
+        sed -i '/# >>> acropolis >>>/,/# <<< acropolis <<</d' "$BASHRC"
+        sed -i -e '/^$/N;/^\n$/d' "$BASHRC"
+        echo "Removed acropolis block from ~/.bashrc."
+    fi
+
+    # Remove symlink
+    if [ -L "$SYMLINK" ]; then
+        rm "$SYMLINK"
+        echo "Removed symlink $SYMLINK."
+    fi
+
+    echo "acropolis: teardown complete."
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+
+cmd_update() {
+    echo "Pulling latest Acropolis..."
+    git -C "$ACROPOLIS_REPO" pull --ff-only
+    echo "Re-running install..."
+    cmd_install
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+
+cmd_add() {
+    local component="${1:-}"
+    case "$component" in
+        workshop)
+            local url="${2:-$WORKSHOP_DEFAULT_URL}"
+            _add_workshop "$url"
+            ;;
+        "")
+            die "usage: acropolis add <component> [options]"
+            ;;
+        *)
+            die "unknown component: $component"
+            ;;
+    esac
+}
+
+_add_workshop() {
+    local url="$1"
+
+    if [ -d "$WORKSHOP_DIR/.git" ]; then
+        echo "workshop: already cloned at $WORKSHOP_DIR, pulling..."
+        git -C "$WORKSHOP_DIR" pull --ff-only
+    else
+        echo "Cloning Workshop from $url..."
+        git clone "$url" "$WORKSHOP_DIR"
+    fi
+
+    if [ -f "$WORKSHOP_DIR/install.sh" ]; then
+        echo "Running Workshop install..."
+        bash "$WORKSHOP_DIR/install.sh"
+    fi
+
+    echo "Launching Workshop session..."
+    bash "$WORKSHOP_DIR/setup_workshop.sh"
+
+    manifest_set "workshop" "-" "git" "0"
+    echo "acropolis: workshop added."
+}
+
+# ── Dispatch ──────────────────────────────────────────────────────────────────
+
+subcommand="${1:-}"
+shift || true
+
+case "$subcommand" in
+    install)  cmd_install "$@" ;;
+    status)   cmd_status "$@" ;;
+    teardown) cmd_teardown "$@" ;;
+    update)   cmd_update "$@" ;;
+    add)      cmd_add "$@" ;;
+    "")       echo "usage: acropolis <install|status|teardown|update|add>" ;;
+    *)        die "unknown subcommand: $subcommand" ;;
+esac
