@@ -43,3 +43,12 @@ teardown() { teardown_acropolis_env; }
     run_acropolis update
     [ -f "$HOME/.local/share/acropolis/nvim/bin/nvim" ]
 }
+
+@test "update pulls over HTTPS so it works on a box with no SSH keys" {
+    export ACROPOLIS_TEST_PULLLOG="$HOME/pull.log"
+    run_acropolis update
+    [ "$status" -eq 0 ]
+    # The pull must target the public HTTPS URL, never an SSH (git@) remote.
+    grep -q "https://github.com/Chandler-Thompson/acropolis.git" "$ACROPOLIS_TEST_PULLLOG"
+    ! grep -q "git@" "$ACROPOLIS_TEST_PULLLOG"
+}

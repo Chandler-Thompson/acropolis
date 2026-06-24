@@ -26,6 +26,11 @@ _resolve_self() {
 ACROPOLIS_REPO="$(_resolve_self)"
 SCRIPT="$ACROPOLIS_REPO/acropolis"
 
+# Always pull updates over HTTPS so `update` works on any box with no SSH keys
+# or PAT (the repo is public). The local SSH `origin` is left untouched, so
+# pushing from a dev box still works.
+ACROPOLIS_REPO_URL="https://github.com/Chandler-Thompson/acropolis.git"
+
 NVIM_VERSION="v0.12.0"
 NVIM_BIN="$ACROPOLIS_DIR/nvim/bin/nvim"
 
@@ -226,7 +231,7 @@ cmd_teardown() {
 
 cmd_update() {
     echo "Pulling latest Acropolis..."
-    git -C "$ACROPOLIS_REPO" pull --ff-only
+    git -C "$ACROPOLIS_REPO" pull --ff-only "$ACROPOLIS_REPO_URL"
     echo "Re-running install..."
     cmd_install
 }

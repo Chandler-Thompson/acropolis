@@ -28,6 +28,8 @@ case "$cmd" in
         chmod +x "$dest/install.sh" "$dest/setup_workshop.sh"
         ;;
     pull)
+        # Record the full pull invocation so tests can assert how update pulls.
+        [ -n "${ACROPOLIS_TEST_PULLLOG:-}" ] && printf '%s\n' "$*" >> "$ACROPOLIS_TEST_PULLLOG"
         target="${cdir:-.}"
         if [ ! -d "$target/.git" ]; then
             echo "fatal: not a git repository: $target" >&2
