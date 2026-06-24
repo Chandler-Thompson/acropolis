@@ -202,3 +202,17 @@ teardown() { teardown_acropolis_env; }
     count_after="$(wc -l < "$HOME/.local/share/acropolis/manifest")"
     [ "$count_before" -eq "$count_after" ]
 }
+
+# ── Faithful bashrc round-trip ────────────────────────────────────────────────
+
+@test "install then teardown restores ~/.bashrc byte-for-byte (interior blanks preserved)" {
+    # A realistic config whose interior double-blank lines must survive untouched.
+    printf 'export A=1\n\n\nexport B=2\nalias x=y\n' > "$HOME/.bashrc"
+    local before
+    before="$(sha256sum "$HOME/.bashrc" | cut -d' ' -f1)"
+    run_acropolis install
+    confirmed_teardown
+    local after
+    after="$(sha256sum "$HOME/.bashrc" | cut -d' ' -f1)"
+    [ "$before" = "$after" ]
+}

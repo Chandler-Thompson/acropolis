@@ -211,10 +211,14 @@ cmd_teardown() {
         echo "Removed $ACROPOLIS_DIR."
     fi
 
-    # Remove bashrc block
+    # Remove bashrc block. install appends a leading blank line before the block
+    # (so it can't fuse onto a file with no trailing newline); the block is always
+    # at EOF, so after deleting it we drop a single trailing blank line to restore
+    # the file exactly. This avoids the old global blank-line squeeze, which could
+    # collapse legitimate double-blank lines elsewhere in the user's config.
     if bashrc_block_present; then
         sed -i '/# >>> acropolis >>>/,/# <<< acropolis <<</d' "$BASHRC"
-        sed -i -e '/^$/N;/^\n$/d' "$BASHRC"
+        sed -i '${/^$/d;}' "$BASHRC"
         echo "Removed acropolis block from ~/.bashrc."
     fi
 
