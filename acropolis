@@ -66,6 +66,20 @@ bashrc_block_present() {
     grep -q "# >>> acropolis >>>" "$BASHRC" 2>/dev/null
 }
 
+# True only when BOTH markers are present as whole lines — the state install
+# creates and that strip_bashrc_block can excise exactly.
+bashrc_has_full_block() {
+    grep -qxF '# >>> acropolis >>>' "$BASHRC" 2>/dev/null && \
+    grep -qxF '# <<< acropolis <<<' "$BASHRC" 2>/dev/null
+}
+
+# True when any acropolis-owned line is present (a marker or the managed source
+# line). Used to detect a hand-corrupted block when the full pair is absent.
+bashrc_has_partial_block() {
+    grep -qE '>>> acropolis >>>|<<< acropolis <<<|\.local/share/acropolis/shell/shell_init' \
+        "$BASHRC" 2>/dev/null
+}
+
 # Remove the acropolis marker block from ~/.bashrc, plus the single blank line
 # install inserted immediately before it. Works wherever the block sits — the
 # user may have edited ~/.bashrc after install, so the block is not necessarily
@@ -236,11 +250,19 @@ cmd_teardown() {
         echo "Removed $ACROPOLIS_DIR."
     fi
 
-    # Remove bashrc block (and the blank line install added before it), restoring
-    # the file exactly — even if the user edited ~/.bashrc after install.
-    if bashrc_block_present; then
+    # Remove the bashrc block. With both markers intact we excise it exactly
+    # (and the blank line install added). If the block was hand-edited so a marker
+    # is missing or altered, we don't guess at what's ours — warn and leave it.
+    if bashrc_has_full_block; then
         strip_bashrc_block
         echo "Removed acropolis block from ~/.bashrc."
+    elif bashrc_has_partial_block; then
+        {
+            echo "warning: ~/.bashrc contains a modified or incomplete acropolis block."
+            echo "         Acropolis won't guess at partial edits; remove these lines by hand:"
+            grep -nE '>>> acropolis >>>|<<< acropolis <<<|\.local/share/acropolis/shell/shell_init' \
+                "$BASHRC" | sed 's/^/           /'
+        } >&2
     fi
 
     # Remove symlink

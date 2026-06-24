@@ -95,6 +95,36 @@ teardown() { teardown_acropolis_env; }
     [ "$(grep -c '^$' "$HOME/.bashrc")" -eq 0 ]
 }
 
+# ── Hand-corrupted block: warn, don't guess ──────────────────────────────────
+
+@test "teardown warns and does not auto-remove when the open marker is deleted" {
+    sed -i '/# >>> acropolis >>>/d' "$HOME/.bashrc"   # user removes one marker by hand
+    confirmed_teardown
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"incomplete acropolis block"* ]]
+    # the orphaned line is left intact for the user, not silently mangled
+    grep -q "acropolis/shell/shell_init" "$HOME/.bashrc"
+}
+
+@test "teardown warns and does not auto-remove when the close marker is deleted" {
+    sed -i '/# <<< acropolis <<</d' "$HOME/.bashrc"
+    confirmed_teardown
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"incomplete acropolis block"* ]]
+    grep -q "# >>> acropolis >>>" "$HOME/.bashrc"
+}
+
+@test "teardown warning lists the offending lines" {
+    sed -i '/# <<< acropolis <<</d' "$HOME/.bashrc"
+    confirmed_teardown
+    [[ "$output" == *"remove these lines by hand"* ]]
+}
+
+@test "a clean (full-block) teardown emits no partial-block warning" {
+    confirmed_teardown
+    [[ "$output" != *"incomplete acropolis block"* ]]
+}
+
 @test "teardown after post-install edits restores ~/.bashrc byte-for-byte" {
     # Re-stage so we control the pristine baseline precisely.
     teardown_acropolis_env
