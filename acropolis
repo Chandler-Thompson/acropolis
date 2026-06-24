@@ -66,6 +66,31 @@ bashrc_block_present() {
     grep -q "# >>> acropolis >>>" "$BASHRC" 2>/dev/null
 }
 
+# Remove the acropolis marker block from ~/.bashrc, plus the single blank line
+# install inserted immediately before it. Works wherever the block sits — the
+# user may have edited ~/.bashrc after install, so the block is not necessarily
+# at EOF — and leaves all other content, including interior blank lines and the
+# user's own trailing blanks, byte-for-byte intact.
+strip_bashrc_block() {
+    local tmp
+    tmp="$(mktemp)"
+    awk '
+        { line[++n] = $0 }
+        END {
+            start = 0; end = 0
+            for (i = 1; i <= n; i++) {
+                if (start == 0 && line[i] == "# >>> acropolis >>>") start = i
+                else if (start > 0 && line[i] == "# <<< acropolis <<<") { end = i; break }
+            }
+            if (start > 0 && end >= start) {
+                if (start > 1 && line[start-1] == "") start--   # blank line install added
+                for (i = 1; i <= n; i++) if (i < start || i > end) print line[i]
+            } else for (i = 1; i <= n; i++) print line[i]
+        }
+    ' "$BASHRC" > "$tmp" && cat "$tmp" > "$BASHRC"
+    rm -f "$tmp"
+}
+
 # ── Subcommands ───────────────────────────────────────────────────────────────
 
 cmd_install() {
@@ -211,14 +236,10 @@ cmd_teardown() {
         echo "Removed $ACROPOLIS_DIR."
     fi
 
-    # Remove bashrc block. install appends a leading blank line before the block
-    # (so it can't fuse onto a file with no trailing newline); the block is always
-    # at EOF, so after deleting it we drop a single trailing blank line to restore
-    # the file exactly. This avoids the old global blank-line squeeze, which could
-    # collapse legitimate double-blank lines elsewhere in the user's config.
+    # Remove bashrc block (and the blank line install added before it), restoring
+    # the file exactly — even if the user edited ~/.bashrc after install.
     if bashrc_block_present; then
-        sed -i '/# >>> acropolis >>>/,/# <<< acropolis <<</d' "$BASHRC"
-        sed -i '${/^$/d;}' "$BASHRC"
+        strip_bashrc_block
         echo "Removed acropolis block from ~/.bashrc."
     fi
 

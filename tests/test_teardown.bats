@@ -82,6 +82,35 @@ teardown() { teardown_acropolis_env; }
     [ -f "$HOME/.bashrc" ]
 }
 
+# ── Edits made AFTER install, BEFORE teardown ─────────────────────────────────
+# setup() installs first; here the user then modifies ~/.bashrc, so the acropolis
+# block is no longer at EOF. Teardown must still excise only its own block.
+
+@test "teardown after user appends a line keeps it and leaves no stray blank" {
+    printf 'alias g=git\n' >> "$HOME/.bashrc"      # appended after the block
+    confirmed_teardown
+    grep -q "alias g=git" "$HOME/.bashrc"
+    ! grep -qi "acropolis" "$HOME/.bashrc"
+    # the blank line install inserted before the block must not be stranded behind
+    [ "$(grep -c '^$' "$HOME/.bashrc")" -eq 0 ]
+}
+
+@test "teardown after post-install edits restores ~/.bashrc byte-for-byte" {
+    # Re-stage so we control the pristine baseline precisely.
+    teardown_acropolis_env
+    setup_acropolis_env
+    printf 'export A=1\n\n\nexport B=2\n' > "$HOME/.bashrc"   # interior double-blank
+    local expected="$HOME/expected.bashrc"
+    cp "$HOME/.bashrc" "$expected"
+    bash "$ACROPOLIS_SCRIPT" install
+    printf 'alias g=git\n\n' >> "$HOME/.bashrc"               # edit after install, trailing blank
+    printf 'alias g=git\n\n' >> "$expected"                   # same edit, but no acropolis block
+    confirmed_teardown
+    # Byte-exact compare. The trailing 'X' sentinel preserves trailing newlines
+    # that plain $(cat) would otherwise strip.
+    [ "$(cat "$expected"; echo X)" = "$(cat "$HOME/.bashrc"; echo X)" ]
+}
+
 # ── Symlink ───────────────────────────────────────────────────────────────────
 
 @test "teardown removes symlink" {
