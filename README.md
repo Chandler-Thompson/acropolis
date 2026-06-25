@@ -39,6 +39,7 @@ tools it installed, the `~/.bashrc` block, the symlink, and the entire
 | `acropolis status` | Prints the manifest (tool, version, install method, whether it pre-existed) plus the state of the `~/.bashrc` block and the symlink. |
 | `acropolis update` | `git pull --ff-only` on the Acropolis repo, then re-runs `install` to apply any changed pins or config. Idempotent. |
 | `acropolis add workshop [url]` | Clones [Workshop](https://github.com/Chandler-Thompson/workshop) into the managed tree and launches its tmux session. Pass an optional `url` to use a fork or branch. |
+| `acropolis dev test` | Installs [bats](https://github.com/bats-core/bats-core) into the managed tree (if not already present) and runs the test suite. `teardown` removes bats along with everything else. |
 | `acropolis teardown` | Prompts for confirmation, then removes everything Acropolis added — including any tools it installed (never pre-existing ones), the `~/.bashrc` block, the symlink, and the managed directory. |
 
 ### Managed tools
@@ -80,16 +81,15 @@ so a tmux or htop that was already on the machine is never touched. The host's
 ## Development
 
 The script is a single executable, `acropolis`. Tests are written with
-[bats](https://github.com/bats-core/bats-core).
+[bats](https://github.com/bats-core/bats-core). Acropolis manages the bats installation
+itself — no manual setup needed:
 
 ```bash
-# install bats once
-git clone --depth 1 https://github.com/bats-core/bats-core.git /tmp/bats-core
-/tmp/bats-core/install.sh ~/.local
-
-# run the suite
-bats tests/
+acropolis dev test
 ```
+
+This installs bats into `~/.local/share/acropolis/bats/` on first run and executes the
+suite. `acropolis teardown` removes bats along with everything else.
 
 Tests run against an isolated `$HOME` (via `mktemp -d`) with stubbed `apt-get`, `curl`,
 `git`, and `sudo`, so nothing touches the network or requires root. They assert on

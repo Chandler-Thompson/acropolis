@@ -12,6 +12,7 @@ acropolis status             # show manifest + bashrc/symlink state
 acropolis teardown           # full cleanup with confirmation prompt
 acropolis update             # git pull + re-run install
 acropolis add workshop [url] # clone Workshop and launch tmux session
+acropolis dev test           # install bats (managed) and run the test suite
 ```
 
 ## Managed tools
@@ -36,16 +37,12 @@ acropolis add workshop [url] # clone Workshop and launch tmux session
 
 ## Running tests
 
-Install bats if not present:
 ```bash
-git clone --depth 1 https://github.com/bats-core/bats-core.git /tmp/bats-core
-/tmp/bats-core/install.sh ~/.local
+acropolis dev test
 ```
 
-Run the suite:
-```bash
-bats tests/
-```
+Installs bats into `$ACROPOLIS_DIR/bats/` on first run, then executes `bats tests/`.
+Cleaned up by `acropolis teardown` — no manual setup or teardown needed.
 
 Tests use stubbed `apt-get`, `curl`, `git`, and `sudo` so nothing touches the network or requires root. Each test runs in an isolated `$HOME` via `mktemp -d`.
 

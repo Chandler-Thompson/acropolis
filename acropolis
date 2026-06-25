@@ -37,6 +37,9 @@ NVIM_BIN="$ACROPOLIS_DIR/nvim/bin/nvim"
 WORKSHOP_DEFAULT_URL="https://github.com/Chandler-Thompson/workshop.git"
 WORKSHOP_DIR="$ACROPOLIS_DIR/workshop"
 
+BATS_DIR="$ACROPOLIS_DIR/bats"
+BATS_BIN="$BATS_DIR/bin/bats"
+
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 die() { echo "acropolis: error: $*" >&2; exit 1; }
@@ -324,6 +327,39 @@ _add_workshop() {
     echo "acropolis: workshop added."
 }
 
+# ─────────────────────────────────────────────────────────────────────────────
+
+cmd_dev() {
+    local subcommand="${1:-}"
+    shift || true
+    case "$subcommand" in
+        test) _dev_test ;;
+        "")   die "usage: acropolis dev <test>" ;;
+        *)    die "unknown dev subcommand: $subcommand" ;;
+    esac
+}
+
+_ensure_bats() {
+    if [ -x "$BATS_BIN" ]; then
+        return
+    fi
+    echo "Installing bats..."
+    local src
+    src="$(mktemp -d)"
+    git clone --depth 1 https://github.com/bats-core/bats-core.git "$src" 2>&1
+    local version
+    version="$(git -C "$src" describe --tags --always 2>/dev/null || echo "latest")"
+    "$src/install.sh" "$BATS_DIR"
+    rm -rf "$src"
+    manifest_set "bats" "$version" "git" "0"
+    echo "bats: installed at $BATS_DIR"
+}
+
+_dev_test() {
+    _ensure_bats
+    "$BATS_BIN" "$ACROPOLIS_REPO/tests/"
+}
+
 # ── Dispatch ──────────────────────────────────────────────────────────────────
 
 subcommand="${1:-}"
@@ -335,6 +371,7 @@ case "$subcommand" in
     teardown) cmd_teardown "$@" ;;
     update)   cmd_update "$@" ;;
     add)      cmd_add "$@" ;;
-    "")       echo "usage: acropolis <install|status|teardown|update|add>" ;;
+    dev)      cmd_dev "$@" ;;
+    "")       echo "usage: acropolis <install|status|teardown|update|add|dev>" ;;
     *)        die "unknown subcommand: $subcommand" ;;
 esac
