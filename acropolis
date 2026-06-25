@@ -129,13 +129,16 @@ _install_apt_tool() {
     if command -v "$tool" &>/dev/null; then
         local version
         version="$("$tool" --version 2>/dev/null | head -1 || true)"
+        [ -z "$version" ] && version="-"
         echo "$tool: already present — $version"
         manifest_set "$tool" "$version" "apt" "1"
     else
         echo "Installing $tool..."
-        sudo apt-get update -qq && sudo apt-get install -y "$tool"
+        sudo apt-get update -qq
+        sudo apt-get install -y "$tool"
         local version
         version="$("$tool" --version 2>/dev/null | head -1 || true)"
+        [ -z "$version" ] && version="-"
         manifest_set "$tool" "$version" "apt" "0"
     fi
 }
