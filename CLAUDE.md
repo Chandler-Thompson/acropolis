@@ -55,4 +55,7 @@ Tests use stubbed `apt-get`, `curl`, `git`, and `sudo` so nothing touches the ne
 - Manifest is plain TSV parsed with grep/sed/awk
 - install is idempotent — safe to run repeatedly
 - teardown removes only tools with `preexisting=0` in the manifest
+- teardown delegates each added component's removal to that component's own
+  cleanup before wiping the managed tree (e.g. `workshop/cleanup.sh --yes`), since
+  a component's runtime state can live outside `~/.local/share/acropolis/`
 - bashrc integration uses clearly delimited markers for surgical sed removal

@@ -39,7 +39,7 @@ tools it installed, the `~/.bashrc` block, the symlink, and the entire
 | `acropolis status` | Prints the manifest (tool, version, install method, whether it pre-existed) plus the state of the `~/.bashrc` block and the symlink. |
 | `acropolis update` | `git pull --ff-only` on the Acropolis repo, then re-runs `install` to apply any changed pins or config. Idempotent. |
 | `acropolis add workshop [url]` | Clones [Workshop](https://github.com/Chandler-Thompson/workshop) into the managed tree and launches its tmux session. Pass an optional `url` to use a fork or branch. |
-| `acropolis teardown` | Prompts for confirmation, then removes everything Acropolis added — including any tools it installed (never pre-existing ones), the `~/.bashrc` block, the symlink, and the managed directory. |
+| `acropolis teardown` | Prompts for confirmation, then removes everything Acropolis added — including any tools it installed (never pre-existing ones), the `~/.bashrc` block, the symlink, and the managed directory. Added components are torn down first by delegating to their own cleanup (e.g. `workshop/cleanup.sh --yes`), so component state living outside the managed tree is removed too. |
 
 ### Managed tools
 

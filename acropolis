@@ -230,9 +230,26 @@ cmd_status() {
 
 # ─────────────────────────────────────────────────────────────────────────────
 
+# Run the cloned Workshop's own cleanup non-interactively, if present. Workshop
+# removes its runtime tree (~/.local/share/workshop/) and kills its tmux server —
+# state Acropolis's own `rm -rf $ACROPOLIS_DIR` cannot reach. A non-zero exit is
+# surfaced as a warning but never aborts the wider teardown.
+_teardown_workshop() {
+    local cleanup="$WORKSHOP_DIR/cleanup.sh"
+    [ -f "$cleanup" ] || return 0
+    echo "Removing Workshop environment..."
+    bash "$cleanup" --yes || echo "warning: workshop cleanup exited non-zero" >&2
+}
+
 cmd_teardown() {
     read -rp "Remove Acropolis and all managed tools from this machine? [y/N] " confirm
     [[ "$confirm" =~ ^[Yy]$ ]] || { echo "Aborted."; exit 0; }
+
+    # Tear down added components first, while their dependencies (e.g. tmux) are
+    # still present. Workshop's runtime tree lives at ~/.local/share/workshop/ —
+    # OUTSIDE the Acropolis tree — so removing $ACROPOLIS_DIR alone would orphan
+    # it. We delegate to Workshop's own cleanup so it owns what it removes.
+    _teardown_workshop
 
     # Uninstall apt tools with preexisting=0
     if [ -f "$MANIFEST" ]; then
