@@ -23,9 +23,15 @@ case "$cmd" in
     clone)
         dest="${args[-1]}"
         mkdir -p "$dest/.git"
-        printf '#!/bin/bash\n' > "$dest/install.sh"
+        # Fabricate a minimal but realistic Workshop: install creates the runtime
+        # tree (outside the acropolis tree), and cleanup removes it but ONLY when
+        # driven non-interactively with --yes — mirroring the contract that
+        # `acropolis teardown` depends on. If teardown forgets the flag, the tree
+        # is left behind and the leave-no-trace assertions fail.
+        printf '#!/bin/bash\nmkdir -p "$HOME/.local/share/workshop"\n' > "$dest/install.sh"
         printf '#!/bin/bash\necho "workshop session launched"\n' > "$dest/setup_workshop.sh"
-        chmod +x "$dest/install.sh" "$dest/setup_workshop.sh"
+        printf '#!/bin/bash\n[ "${1:-}" = "--yes" ] || exit 1\nrm -rf "$HOME/.local/share/workshop"\n' > "$dest/cleanup.sh"
+        chmod +x "$dest/install.sh" "$dest/setup_workshop.sh" "$dest/cleanup.sh"
         ;;
     pull)
         # Record the full pull invocation so tests can assert how update pulls.

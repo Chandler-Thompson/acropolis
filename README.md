@@ -40,7 +40,7 @@ tools it installed, the `~/.bashrc` block, the symlink, and the entire
 | `acropolis update` | `git pull --ff-only` on the Acropolis repo, then re-runs `install` to apply any changed pins or config. Idempotent. |
 | `acropolis add workshop [url]` | Clones [Workshop](https://github.com/Chandler-Thompson/workshop) into the managed tree and launches its tmux session. Pass an optional `url` to use a fork or branch. |
 | `acropolis dev test` | Installs [bats](https://github.com/bats-core/bats-core) into the managed tree (if not already present) and runs the test suite. `teardown` removes bats along with everything else. |
-| `acropolis teardown` | Prompts for confirmation, then removes everything Acropolis added — including any tools it installed (never pre-existing ones), the `~/.bashrc` block, the symlink, and the managed directory. |
+| `acropolis teardown` | Prompts for confirmation, then removes everything Acropolis added — including any tools it installed (never pre-existing ones), the `~/.bashrc` block, the symlink, and the managed directory. Added components are torn down first by delegating to their own cleanup (e.g. `workshop/cleanup.sh --yes`), so component state living outside the managed tree is removed too. |
 
 ### Managed tools
 

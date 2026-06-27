@@ -72,3 +72,33 @@ teardown() { teardown_acropolis_env; }
     confirmed_teardown
     [ ! -d "$HOME/.local/share/acropolis/workshop" ]
 }
+
+@test "add workshop creates the workshop runtime tree" {
+    bash "$ACROPOLIS_SCRIPT" add workshop
+    [ -d "$HOME/.local/share/workshop" ]
+}
+
+@test "teardown removes the workshop runtime tree (outside the acropolis tree)" {
+    bash "$ACROPOLIS_SCRIPT" add workshop
+    [ -d "$HOME/.local/share/workshop" ]
+    confirmed_teardown
+    [ ! -d "$HOME/.local/share/workshop" ]
+}
+
+@test "teardown delegates to workshop cleanup with --yes" {
+    # The fabricated workshop cleanup removes the runtime tree ONLY when given
+    # --yes, so a clean removal proves Acropolis passed the flag.
+    bash "$ACROPOLIS_SCRIPT" add workshop
+    run bash -c "echo y | bash '$ACROPOLIS_SCRIPT' teardown"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Removing Workshop environment"* ]]
+    [ ! -d "$HOME/.local/share/workshop" ]
+}
+
+@test "teardown leaves no '*workshop*' residue under ~/.local/share" {
+    bash "$ACROPOLIS_SCRIPT" add workshop
+    confirmed_teardown
+    local found
+    found="$(find "$HOME/.local/share" -iname '*workshop*' 2>/dev/null)"
+    [ -z "$found" ]
+}
